@@ -1,0 +1,35 @@
+# --- Node / frontend ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# --- Rust / Tauri build output (Dev 1) ---
+target/
+src-tauri/target/
+src-tauri/gen/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Environment ---
+.env
+.env.*
+!.env.example
+
+# --- Editors ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Local agent / MCP tooling (machine-specific, not shared) ---
+.serena/
