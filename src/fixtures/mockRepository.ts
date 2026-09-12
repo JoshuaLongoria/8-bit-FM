@@ -1,25 +1,33 @@
 /**
- * Typed entry point for the mock repository fixture.
+ * Typed entry point for the frontend scene fixture.
  *
- * PROVISIONAL: `mock-repo.json` is a hand-written stand-in for Developer 1's Rust
- * scanner output. It lets the Canvas scene be built and tested before the backend
- * exists. It is NOT the agreed backend contract.
+ * PROVISIONAL: `./mockScene.json` is a frontend-only `RepositoryScene` fixture —
+ * hand-written, already in the shape the Canvas scene wants to draw from. It exists
+ * so the scene can be built and tested before the Rust backend is finished. It is
+ * NOT the agreed backend contract.
+ *
+ * Do not confuse it with `src/mock-repo.json`, which is a different file owned by a
+ * teammate: that one holds the RAW backend/tree fixture (nested `children`,
+ * `snake_case` keys such as `file_count` and `git_status`, repository-prefixed
+ * paths). The two are deliberately separate shapes. Converting raw backend output
+ * into a `RepositoryScene` is the job of the planned `parseRepoScan()` adapter, and
+ * that adapter is the only place the two shapes should ever meet.
  *
  * This file intentionally contains no logic — no sorting, no ranking, no defaults.
- * Its only job is to attach a type to the raw JSON so the compiler guards the two
+ * Its only job is to attach a type to the fixture so the compiler guards the two
  * against drifting apart. Ranking and layout happen in Phase 3.
  */
-import mockRepositoryJson from '../mock-repo.json'
+import mockSceneJson from './mockScene.json'
 import type { RepositoryScene } from '../scene/sceneTypes'
 
 /**
  * The `: RepositoryScene` annotation is the safety check. TypeScript infers the
- * exact shape of the imported JSON, then verifies it satisfies the view model.
- * If the JSON loses a required field, misspells a key, or changes a value's type,
+ * exact shape of `mockScene.json`, then verifies it satisfies the view model.
+ * If the fixture loses a required field, misspells a key, or changes a value's type,
  * this assignment fails to compile — so `npm run typecheck` catches the mismatch
  * instead of the scene breaking at runtime.
  *
  * Note the absence of `as RepositoryScene`: a type assertion would silence exactly
  * the errors this line exists to surface.
  */
-export const mockRepository: RepositoryScene = mockRepositoryJson
+export const mockRepository: RepositoryScene = mockSceneJson
