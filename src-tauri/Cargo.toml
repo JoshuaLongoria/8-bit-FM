@@ -6,3 +6,9 @@ pub fn run() {
 		.plugin(tauri_plugin_fs::init()
 		.setup(|app| {
 			// allowed})cd)}
+
+[dependencies]
+serde_with = "3"
+
+fs:allow-exists
+{"permissions": ["fs:default", "fs:allow-exists]}
