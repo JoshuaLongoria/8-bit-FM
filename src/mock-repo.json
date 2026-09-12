@@ -1,0 +1,117 @@
+{
+  "repo": { "name": "8-bit-FM", "branch": "main", "is_dirty": true },
+  "root": {
+    "name": "8-bit-FM",
+    "path": "8-bit-FM",
+    "kind": "dir",
+    "git_status": "modified",
+    "file_count": 25,
+    "children": [
+      {
+        "name": "assets",
+        "path": "8-bit-FM/assets",
+        "kind": "dir",
+        "git_status": "clean",
+        "file_count": 0,
+        "children": []
+      },
+      {
+        "name": "docs",
+        "path": "8-bit-FM/docs",
+        "kind": "dir",
+        "git_status": "modified",
+        "file_count": 4,
+        "children": [
+          {
+            "name": "notes",
+            "path": "8-bit-FM/docs/notes",
+            "kind": "dir",
+            "git_status": "clean",
+            "file_count": 1,
+            "children": [
+              { "name": "scratch.md", "path": "8-bit-FM/docs/notes/scratch.md", "kind": "file", "git_status": "clean" }
+            ]
+          },
+          { "name": "contract.md", "path": "8-bit-FM/docs/contract.md", "kind": "file", "git_status": "added" },
+          { "name": "demo-script.md", "path": "8-bit-FM/docs/demo-script.md", "kind": "file", "git_status": "untracked" },
+          { "name": "old-plan.md", "path": "8-bit-FM/docs/old-plan.md", "kind": "file", "git_status": "deleted" }
+        ]
+      },
+      {
+        "name": "src",
+        "path": "8-bit-FM/src",
+        "kind": "dir",
+        "git_status": "modified",
+        "file_count": 8,
+        "children": [
+          {
+            "name": "ui",
+            "path": "8-bit-FM/src/ui",
+            "kind": "dir",
+            "git_status": "clean",
+            "file_count": 1,
+            "children": [
+              {
+                "name": "panels",
+                "path": "8-bit-FM/src/ui/panels",
+                "kind": "dir",
+                "git_status": "clean",
+                "file_count": 1,
+                "children": [
+                  { "name": "detail.js", "path": "8-bit-FM/src/ui/panels/detail.js", "kind": "file", "git_status": "clean" }
+                ]
+              }
+            ]
+          },
+          { "name": "index.html", "path": "8-bit-FM/src/index.html", "kind": "file", "git_status": "modified" },
+          { "name": "main.js", "path": "8-bit-FM/src/main.js", "kind": "file", "git_status": "modified" },
+          { "name": "mock-repo.json", "path": "8-bit-FM/src/mock-repo.json", "kind": "file", "git_status": "untracked" },
+          { "name": "scene.js", "path": "8-bit-FM/src/scene.js", "kind": "file", "git_status": "added" },
+          { "name": "state.js", "path": "8-bit-FM/src/state.js", "kind": "file", "git_status": "added" },
+          { "name": "styles.css", "path": "8-bit-FM/src/styles.css", "kind": "file", "git_status": "modified" },
+          { "name": "tree.js", "path": "8-bit-FM/src/tree.js", "kind": "file", "git_status": "added" }
+        ]
+      },
+      {
+        "name": "src-tauri",
+        "path": "8-bit-FM/src-tauri",
+        "kind": "dir",
+        "git_status": "modified",
+        "file_count": 9,
+        "children": [
+          {
+            "name": "src",
+            "path": "8-bit-FM/src-tauri/src",
+            "kind": "dir",
+            "git_status": "modified",
+            "file_count": 7,
+            "children": [
+              {
+                "name": "commands",
+                "path": "8-bit-FM/src-tauri/src/commands",
+                "kind": "dir",
+                "git_status": "modified",
+                "file_count": 4,
+                "children": [
+                  { "name": "dialog.rs", "path": "8-bit-FM/src-tauri/src/commands/dialog.rs", "kind": "file", "git_status": "clean" },
+                  { "name": "git.rs", "path": "8-bit-FM/src-tauri/src/commands/git.rs", "kind": "file", "git_status": "modified" },
+                  { "name": "mod.rs", "path": "8-bit-FM/src-tauri/src/commands/mod.rs", "kind": "file", "git_status": "clean" },
+                  { "name": "walk.rs", "path": "8-bit-FM/src-tauri/src/commands/walk.rs", "kind": "file", "git_status": "modified" }
+                ]
+              },
+              { "name": "lib.rs", "path": "8-bit-FM/src-tauri/src/lib.rs", "kind": "file", "git_status": "modified" },
+              { "name": "main.rs", "path": "8-bit-FM/src-tauri/src/main.rs", "kind": "file", "git_status": "clean" },
+              { "name": "models.rs", "path": "8-bit-FM/src-tauri/src/models.rs", "kind": "file", "git_status": "added" }
+            ]
+          },
+          { "name": "Cargo.toml", "path": "8-bit-FM/src-tauri/Cargo.toml", "kind": "file", "git_status": "modified" },
+          { "name": "tauri.conf.json", "path": "8-bit-FM/src-tauri/tauri.conf.json", "kind": "file", "git_status": "modified" }
+        ]
+      },
+      { "name": ".gitignore", "path": "8-bit-FM/.gitignore", "kind": "file", "git_status": "clean" },
+      { "name": "Cargo.toml", "path": "8-bit-FM/Cargo.toml", "kind": "file", "git_status": "modified" },
+      { "name": "CLAUDE.md", "path": "8-bit-FM/CLAUDE.md", "kind": "file", "git_status": "untracked" },
+      { "name": "README.md", "path": "8-bit-FM/README.md", "kind": "file", "git_status": "clean" }
+    ]
+  }
+}
