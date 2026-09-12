@@ -33,3 +33,4 @@ Thumbs.db
 
 # --- Local agent / MCP tooling (machine-specific, not shared) ---
 .serena/
+".vs/" 
