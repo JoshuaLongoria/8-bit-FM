@@ -5,4 +5,4 @@ pub fn run() {
 	tauri::Builder::default()
 		.plugin(tauri_plugin_fs::init()
 		.setup(|app| {
-			// allowed}))}
+			// allowed})cd)}
