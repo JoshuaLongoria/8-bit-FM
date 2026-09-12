@@ -1,7 +1,7 @@
 # 8-bit-FM data contract
 
 The shape of the payload that crosses the IPC boundary. All three of us code against
-this file: `models.rs` serializes to it, `state.js` and `tree.js` consume it, `scene.js`
+this file: `models.rs` serializes to it, `state.ts` and `tree.tsx` consume it, `scene.tsx`
 reads the same nodes.
 
 `src/mock-repo.json` is the **executable** version of this document. If the two ever
@@ -41,8 +41,12 @@ Sparse: **files omit `children` and `file_count` entirely.**
 - An empty directory has `"children": []`, not a missing key.
 - **Rust:** `children` is `Option<Vec<FileNode>>` with
   `#[serde(skip_serializing_if = "Option::is_none")]`. Without the attribute you emit
-  `"children": null`. The frontend survives that (`node.children || []` is the standing
-  idiom) but it isn't the contract.
+  `"children": null`. **The frontend does not survive that.** `FileNode` is a
+  discriminated union on `kind`, so `children` exists only on the dir variant — narrow
+  on `kind` first and `.children` is simply there. There is no `node.children || []`
+  fallback to absorb a `null`, and the payload enters TypeScript through a single
+  unchecked cast, so the boundary will not catch it either — it throws in the tree walk.
+  Keep the attribute.
 - Field names are snake_case throughout — serde's default, so no `rename_all` attributes
   to get out of sync.
 
@@ -119,7 +123,7 @@ Deliberately a four-step checklist, because three separate things key off these 
 and two of them fail **silently** (no announcement, no color) rather than throwing:
 
 1. Agree on the string and add it to the list above.
-2. Add it to `STATUS_LABEL` in `tree.js` — otherwise it degrades to no announcement.
+2. Add it to `STATUS_LABEL` in `tree.tsx` — otherwise it degrades to no announcement.
 3. Add a CSS class for it in `styles.css`.
 4. Tell the canvas owner so the snowman gets a color for it.
 
@@ -148,6 +152,9 @@ Currently deferred on purpose: `conflicted`. It degrades cleanly until step 1 ha
    directory walk can never find it. Supporting it means merging the walk with the git
    index *and* synthesizing phantom parent directories when a whole directory is gone.
    In scope or out? The answer decides whether `docs/old-plan.md` stays in the mock.
+   *Dropping that node moves five numbers in the fixture — total nodes 35→34, `docs`
+   children 4→3, `docs.file_count` 4→3, `root.file_count` 25→24, and the `old-plan.md`
+   row itself — so whoever answers this owns a fixture re-verify.*
 7. **`changed_count` per directory**, to announce "8 files, 3 changed"? Must be decided
    before `git.rs` is written or it won't happen.
 

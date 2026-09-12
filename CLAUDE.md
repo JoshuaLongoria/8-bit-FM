@@ -25,7 +25,7 @@ winter scene. **Tauri v2** shell, **React 19 + TypeScript 6 + Vite 8** frontend.
     THE actual UI              decorative only
 ```
 
-Four rules hold this together:
+Five rules hold this together:
 
 1. **One-way flow.** State → renderers, always. Renderers read state and dispatch intents
    back (`select(path)`, `toggle(path)`); they never mutate it and never keep their own
@@ -39,6 +39,14 @@ Four rules hold this together:
 4. **`state.ts` imports neither React nor the DOM.** It is a plain external store —
    `subscribe(fn)` + `getSnapshot()` — which keeps it console-testable in isolation.
    That's how it gets debugged at 3am.
+5. **Every state change produces new object identities.** This one breaks in both
+   directions and neither failure throws. Derive inside `getSnapshot()` and you hand
+   `useSyncExternalStore` a freshly-built array every time it checks — nothing is equal
+   to anything, so React re-renders forever. Mutate in place (`expanded.add(path)`) and
+   the Set *and* the enclosing state object stay referentially equal — React sees no
+   change, nothing re-renders, and it presents as a `toggle()` that does nothing.
+   Replace rather than mutate (`new Set(expanded)`), return a stable snapshot, and
+   derive the visible-node array outside the store.
 
 ### Why an external store instead of React state
 
@@ -53,8 +61,14 @@ rule 4 survives, which it would not if state lived in a React hook.
 |---|---|
 | **1** — Rust backend | `src-tauri/**` |
 | **2** — canvas scene | `src/scene.tsx`, `src/styles.css` |
-| **3** — accessibility + state | `src/state.ts`, `src/tree.tsx`, `src/visibleNodes.ts`, `src/types.ts`, `src/mock-repo.json` |
+| **3** — accessibility + state | `src/state.ts`, `src/tree.tsx`, `src/visibleNodes.ts`, `src/types.ts`, `src/mock-repo.json`, `src/a11y.css` |
 | shared | `src/App.tsx`, `index.html` |
+
+`src/a11y.css` is split out of `styles.css` on purpose. Focus rings, `:focus-visible`,
+`.sr-only`, `prefers-reduced-motion` and the high-contrast theme are correctness for the
+accessibility layer, not styling — a well-meant edit to a focus outline is a demo-breaking
+bug. Dev 2 owns how the scene looks; Dev 3 owns anything that decides whether the tree is
+operable.
 
 ## Hard constraints
 
@@ -94,13 +108,8 @@ gets bundled. **Do not `fetch()` it**; that breaks the single-file build and rei
 a network dependency.
 
 There is exactly one copy of the fixture. `src/mock-repo.js` (a `window.MOCK_REPO` global
-from the pre-React vanilla setup) is **obsolete** — delete it once `mock-repo.json` is
-committed with content.
-
-> `src/mock-repo.json` is tracked at **0 bytes in every commit** — it has never been
-> committed with content, and the React merge left the working tree empty. It was restored
-> from the old generated `.js`. **Commit it.** Until then, one `git clean` loses 35
-> hand-verified nodes permanently.
+from the pre-React vanilla setup) has been deleted. `src/mock-repo.json` is committed with
+content as of `fdee582` — 35 nodes, verified against every FROZEN rule in the contract.
 
 ## Data contract
 
@@ -130,13 +139,16 @@ placeholder), `src/styles.css`, the Vite/TS/ESLint config, `src/mock-repo.json`
 (35 nodes, verified), `docs/contract.md`.
 
 Absent: `src/state.ts`, `src/tree.tsx`, `src/visibleNodes.ts`, `src/types.ts`,
-`src/scene.tsx`. All of `src-tauri/**` is still 0 bytes — the Rust crate does not resolve
-yet, so `cargo tauri dev` cannot run.
+`src/scene.tsx`, `src/a11y.css`. The seven `.rs` files under `src-tauri/src/` are still
+0 bytes — `Cargo.toml` (301 B) and `tauri.conf.json` (835 B) do have content — so the Rust
+crate does not resolve yet and `cargo tauri dev` cannot run.
 
 Build order for the accessibility layer, each step testable before the next:
 
-1. `visibleNodes(root, expanded)` → flat `{ node, level }[]`. Comes before any JSX,
-   because it turns every keyboard case into array arithmetic. ← **next**
+1. `visibleNodes(root, expanded)` → flat `{ node, level, posinset, setsize }[]`. Comes
+   before any JSX, because it turns every keyboard case into array arithmetic.
+   `posinset`/`setsize` are computed in the walk, from the siblings the walk actually
+   emits. ← **next**
 2. `state.ts` — external store: subscribe/getSnapshot, selection, expansion.
 3. `tree.tsx` — ARIA tree with roving tabindex, bound via `useSyncExternalStore`.
 4. Keyboard handler — up/down/left/right/Enter/Escape/Home/End.
@@ -154,9 +166,11 @@ Build order for the accessibility layer, each step testable before the next:
 
 **Frontend**
 
-- `children` is **absent** on file nodes (the contract is deliberately sparse), so
-  `(node.children ?? [])` is the standing traversal idiom. `kind` (`"dir"` / `"file"`) is
-  the discriminator, never the presence of `children`.
+- `children` is **absent** on file nodes (the contract is deliberately sparse), and
+  `FileNode` is a discriminated union on `kind` (`"dir"` / `"file"`) — never on the
+  presence of `children`. There is therefore no `(node.children ?? [])` idiom: it does
+  not compile, because `children` is not on the file variant to be optional about.
+  Narrow on `kind` first, then `.children` is simply there.
 - Types mirroring the contract live in `src/types.ts`, hand-written — not inferred from
   the JSON import, since the mock is a sample and the Rust payload is the real source.
 - CSS uses BEM-ish class names (`app__header`, `scene-placeholder__label`).
