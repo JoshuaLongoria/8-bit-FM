@@ -5,6 +5,16 @@
  * Intentionally absent until their own phases: Canvas, sprites, animation,
  * mock data, shared state, and Developer 3's accessible file tree.
  */
+
+import repoJson from './mock-repo.json'
+import type { RepoPayload } from './types'
+import { load } from './state'
+import { Tree } from './tree'   
+
+const payload = repoJson as unknown as RepoPayload
+load(payload.repo, payload.root)
+
+
 export default function App() {
   return (
     <div className="app">
@@ -16,6 +26,7 @@ export default function App() {
       </header>
 
       <main className="app__main">
+        <Tree />
         <div className="scene-placeholder">
           <p className="scene-placeholder__label">Scene placeholder</p>
           <p className="scene-placeholder__hint">The Canvas winter scene renders here.</p>
