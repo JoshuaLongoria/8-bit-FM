@@ -58,6 +58,26 @@ export function select(path: string | null): void {
   emit()
 }
 
+/**
+ * Open a directory, idempotently.
+ *
+ * Deliberately NOT `toggle`. The map activates a folder when the player finishes
+ * walking to its house, and activation means "this folder is now open" — clicking
+ * a house whose folder is already expanded must leave it open. `toggle` would
+ * close it, so a second click would collapse the very folder the walk just went
+ * to open.
+ *
+ * Already open is a no-op with no emit at all, so no subscriber re-renders and
+ * nothing is re-announced.
+ */
+export function expand(path: string): void {
+  if (snapshot.expanded.has(path)) return
+  const expanded = new Set(snapshot.expanded)   // NEW Set, then NEW snapshot
+  expanded.add(path)
+  snapshot = { ...snapshot, expanded }
+  emit()
+}
+
 export function toggle(path: string): void {
   const expanded = new Set(snapshot.expanded)   // NEW Set, then NEW snapshot
   if (expanded.has(path)) {

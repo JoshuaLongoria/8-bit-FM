@@ -28,6 +28,17 @@ const SELECT_SHADOW = '#3a2a06'
 export interface MapHighlight {
   readonly hoveredPath: string | null
   readonly selectedPath: string | null
+  /**
+   * Where to draw the player right now, overriding its resting place in the
+   * layout.
+   *
+   * The layout is rebuilt only when the data or the canvas size changes, never
+   * per animation frame — so a walking player cannot be expressed by moving its
+   * bounds. Instead the animation passes its current position here and the parts
+   * are drawn offset by the difference. The layout stays the stable description
+   * of where things live; this is the transient runtime position.
+   */
+  readonly playerPosition?: { readonly x: number; readonly y: number } | null
 }
 
 /**
@@ -226,8 +237,25 @@ export function drawMap(
   // `layout.objects` is already in back-to-front order, and each object carries
   // the pieces it is assembled from.
   for (const object of layout.objects) {
+    // A walking player is drawn offset from where it rests in the layout. Every
+    // other object, and a player that is standing still, draws exactly as laid out.
+    const offset =
+      object.kind === 'player' && highlight.playerPosition
+        ? {
+            x: highlight.playerPosition.x - object.bounds.x,
+            y: highlight.playerPosition.y - object.bounds.y,
+          }
+        : null
+
     for (const part of object.parts) {
-      drawSprite(ctx, part.sprite, assets, part.bounds)
+      drawSprite(
+        ctx,
+        part.sprite,
+        assets,
+        offset
+          ? { ...part.bounds, x: part.bounds.x + offset.x, y: part.bounds.y + offset.y }
+          : part.bounds,
+      )
     }
 
     // The Poké Center gets its "P.C" signboard hung on the roof above the door.

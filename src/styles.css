@@ -170,6 +170,216 @@ body {
   font-style: italic;
 }
 
+/* ── Dialogs ─────────────────────────────────────────────────────────────
+   One shell, two uses: the read-only file preview and the folder details.
+   Styles live here rather than inline in the components so the dialogs can use
+   media queries and :focus-visible, which inline styles cannot express. */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0.5rem, 2vmin, 1.5rem);
+  background: rgb(5 8 16 / 78%);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  /* Responsive, capped around 700px, and never larger than the viewport minus
+     the overlay padding — the overlay is a padded flex container, so 100% here
+     is already "viewport minus padding". */
+  width: min(700px, 100%);
+  max-width: 700px;
+  max-height: 100%;
+  overflow: hidden;
+  /* Cream pixel-style frame over dark navy, squared off. */
+  border: 3px solid var(--color-frame);
+  border-radius: 2px;
+  background: var(--color-sky);
+  color: var(--color-snow);
+  font-family: ui-monospace, SFMono-Regular, 'Cascadia Mono', Consolas, monospace;
+  box-shadow: 0 0 0 3px var(--color-ink);
+}
+
+.dialog--file {
+  height: min(70vh, 100%);
+}
+
+.dialog--folder {
+  height: auto;
+}
+
+.dialog__header {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.9rem;
+  background: var(--color-ink);
+  border-bottom: 3px solid var(--color-frame);
+}
+
+.dialog__title {
+  margin: 0;
+  color: var(--color-select);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.dialog__close {
+  flex: none;
+  padding: 0.15rem 0.5rem;
+  border: 2px solid transparent;
+  border-radius: 2px;
+  background: none;
+  color: var(--color-snow);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dialog__close:hover {
+  border-color: var(--color-frame);
+  background: rgb(255 255 255 / 10%);
+}
+
+.dialog__close:focus-visible {
+  outline: 3px solid var(--color-select);
+  outline-offset: 2px;
+}
+
+/* ── File preview body ─────────────────────────────────────────────────── */
+.file-preview__content {
+  flex: 1;
+  margin: 0;
+  padding: 1rem;
+  overflow: auto;
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.file-preview__content:focus-visible {
+  outline: 3px solid var(--color-select);
+  outline-offset: -3px;
+}
+
+/* ── Folder details body ───────────────────────────────────────────────── */
+.folder-details__summary {
+  display: grid;
+  gap: 0.3rem 1rem;
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  border-bottom: 2px solid rgb(248 240 208 / 35%);
+  font-size: 0.82rem;
+}
+
+.folder-details__row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+}
+
+.folder-details__row dt {
+  flex: 0 0 4.5rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+}
+
+.folder-details__row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.folder-details__path {
+  color: var(--color-accent);
+}
+
+/* The scrollable region: a long folder listing must not grow the dialog past
+   the viewport, so this is what scrolls, not the page. */
+.folder-details__contents {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.6rem 0.9rem 0.9rem;
+}
+
+.folder-details__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.folder-details__entry {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.2rem 0.25rem;
+  font-size: 0.82rem;
+  border-bottom: 1px solid rgb(159 176 204 / 15%);
+}
+
+.folder-details__marker {
+  flex: none;
+  width: 1ch;
+  color: var(--color-select);
+}
+
+.folder-details__kind {
+  flex: 0 0 3.5rem;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.folder-details__name {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.folder-details__status {
+  flex: none;
+  padding: 0 0.35rem;
+  border: 1px solid var(--color-select);
+  border-radius: 2px;
+  color: var(--color-select);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.folder-details__note {
+  margin: 0.6rem 0 0;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.folder-details__contents > .folder-details__note:first-child {
+  margin-top: 0;
+}
+
+@media (max-width: 560px) {
+  .folder-details__row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .folder-details__kind {
+    flex-basis: 2.5rem;
+  }
+}
+
 /*
  * The map container. It is the element the canvas measures itself against, so it
  * must have a real size of its own rather than being sized by the canvas.

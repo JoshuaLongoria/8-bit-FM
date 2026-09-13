@@ -80,17 +80,39 @@ export function toCanvasPoint(
 }
 
 /**
- * Find the folder path under a point, or `null`.
+ * What the pointer is over, as a typed result.
  *
- * Only folder houses are interactive. The Poké Center stands for the repository
- * as a whole, trees are scenery and the player is not a target, so all of them
- * return `null` and a click on them clears the selection.
+ * Replaces the earlier arrangement where the Poké Center was signalled by
+ * returning a sentinel string in the same slot as a folder path. A sentinel is
+ * indistinguishable from a real path to the type system, so nothing stopped it
+ * being stored as a selection or compared against tree node paths. Worse, the old
+ * check returned it for *every* non-house object, which meant clicking a tree or
+ * the player opened the directory picker. The two outcomes are genuinely
+ * different kinds of thing, so they are now different shapes — and scenery is
+ * neither.
+ */
+export type MapHit =
+  | { readonly kind: 'folder'; readonly path: string }
+  | { readonly kind: 'repository' }
+  | null
+
+/**
+ * Find what is under a point.
+ *
+ * Interactive: folder houses (a folder) and the Poké Center (the repository as a
+ * whole). Everything else — trees, the player, paths, labels, grass, empty
+ * space — produces `null`, and a click there clears the selection.
  *
  * Objects are tested in REVERSE of draw order. `layout.objects` is ordered
- * back-to-front for painting, so the last match is the one drawn on top — walking
- * backwards means the first hit found is the one the user can actually see.
+ * back-to-front for painting, so walking backwards means the first hit found is
+ * the one drawn on top, which is the one the user can actually see.
+ *
+ * Non-interactive objects are transparent rather than blocking: the loop skips
+ * them and keeps looking underneath. That matters now the player moves — it comes
+ * to rest against a house, and a player that swallowed clicks would make the very
+ * house it is standing at unclickable.
  */
-export function hitTestFolder(layout: WorldLayout, point: CanvasPoint | null): string | null {
+export function hitTestMap(layout: WorldLayout, point: CanvasPoint | null): MapHit {
   if (!point) {
     return null
   }
@@ -100,12 +122,12 @@ export function hitTestFolder(layout: WorldLayout, point: CanvasPoint | null): s
       continue
     }
     if (object.kind === 'house' && object.folderPath !== null) {
-      return object.folderPath
+      return { kind: 'folder', path: object.folderPath }
     }
-    // Detect clicks on the P.C. house or non-folder background structures
-    if (object.kind !== 'house' || object.folderPath === null) {
-      return '__PC_HOUSE__'
+    if (object.kind === 'pokeCenter') {
+      return { kind: 'repository' }
     }
+    // Trees, the player, and anything else: scenery. Keep looking underneath.
   }
   return null
 }
@@ -113,11 +135,16 @@ export function hitTestFolder(layout: WorldLayout, point: CanvasPoint | null): s
 /**
  * Convenience for pointer handlers: convert and hit-test in one step.
  */
-export function folderAtClientPoint(
+export function mapHitAtClientPoint(
   clientX: number,
   clientY: number,
   rect: ElementRect,
   layout: WorldLayout,
-): string | null {
-  return hitTestFolder(layout, toCanvasPoint(clientX, clientY, rect, layout))
+): MapHit {
+  return hitTestMap(layout, toCanvasPoint(clientX, clientY, rect, layout))
+}
+
+/** The folder path from a hit, or `null` for the repository and for misses. */
+export function folderPathOf(hit: MapHit): string | null {
+  return hit !== null && hit.kind === 'folder' ? hit.path : null
 }
