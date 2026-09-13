@@ -1,7 +1,6 @@
 /*
- * Phase 1 global styles only: layout for the shell plus the scene placeholder.
- * Real scene colors and the high-contrast theme arrive with themes.ts (Phase 4).
- * Fonts are system stacks on purpose — no downloaded or licensed assets yet.
+ * Global styles for the application shell and the world map container.
+ * Fonts are system stacks on purpose — no downloaded or licensed webfonts.
  */
 
 :root {
@@ -11,6 +10,8 @@
   --color-ink: #0d1220;
   --color-accent: #7fd4ff;
   --color-muted: #9fb0cc;
+  --color-frame: #f8f0d0;
+  --color-select: #ffd23f;
 
   color-scheme: dark;
   font-family: ui-monospace, SFMono-Regular, 'Cascadia Mono', Consolas, monospace;
@@ -28,14 +29,22 @@ body {
   color: var(--color-snow);
 }
 
+/*
+ * The shell fills the viewport exactly and never exceeds it, so the map and the
+ * status line are always both visible without scrolling. `100dvh` tracks mobile
+ * browser chrome as it shows and hides; `overflow: hidden` is the guarantee that
+ * a stray pixel of content cannot introduce a scrollbar.
+ */
 .app {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  min-height: 100vh;
-  padding: 2rem 1.5rem;
+  gap: 0.75rem;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  padding: clamp(0.5rem, 1.5vmin, 1.25rem);
   margin: 0 auto;
-  max-width: 1100px;
+  max-width: 1600px;
 }
 
 .app__header {
@@ -46,7 +55,7 @@ body {
 
 .app__title {
   margin: 0;
-  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-size: clamp(1.1rem, 2.6vmin, 1.75rem);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   /* Blocky offset shadow, the cheapest nod to 8-bit type. */
@@ -56,38 +65,163 @@ body {
 .app__subtitle {
   margin: 0;
   color: var(--color-muted);
-  font-size: 0.95rem;
+  font-size: clamp(0.7rem, 1.5vmin, 0.9rem);
 }
 
+/* On very short viewports the subtitle is the first thing worth sacrificing so
+   the map keeps its height. */
+@media (max-height: 420px) {
+  .app__subtitle {
+    display: none;
+  }
+}
+
+/*
+ * The two interfaces side by side.
+ *
+ * Narrow screens stack: the tree sits above the map with a capped height so the
+ * map is never squeezed out of view. Wide screens put the tree in a fixed-width
+ * scrollable sidebar beside the map.
+ *
+ * `min-height: 0` and `min-width: 0` are load-bearing. A flex child defaults to
+ * `min-*: auto`, which refuses to shrink below its content — that is what makes a
+ * long file tree push the map off the page instead of scrolling itself.
+ */
 .app__main {
   display: flex;
   flex: 1;
-}
-
-.scene-placeholder {
-  display: flex;
-  flex: 1;
+  min-height: 0;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-height: 320px;
-  padding: 2rem 1rem;
-  text-align: center;
-  border: 3px dashed var(--color-accent);
+  gap: 0.75rem;
+}
+
+.app__tree {
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: 30vh;
+  overflow: auto;
+  padding: 0.5rem;
+  border: 2px solid var(--color-frame);
   border-radius: 2px;
-  background: rgb(255 255 255 / 4%);
+  background: rgb(13 18 32 / 55%);
+  font-size: 0.85rem;
 }
 
-.scene-placeholder__label {
-  margin: 0;
-  font-size: 1.1rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+/* Rows are otherwise flush against each other and hard to hit.
+   Focus and selection styling stay in a11y.css — untouched. */
+.app__tree [role='treeitem'] {
+  padding: 0.15rem 0.25rem;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
-.scene-placeholder__hint {
-  margin: 0;
+@media (min-width: 860px) {
+  .app__main {
+    flex-direction: row;
+  }
+
+  .app__tree {
+    flex: 0 0 clamp(200px, 24%, 320px);
+    max-height: none;
+    height: 100%;
+  }
+}
+
+.app__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
   color: var(--color-muted);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
+}
+
+.app__meta {
+  white-space: nowrap;
+}
+
+/* Selection status. Ordinary HTML outside the canvas, so it is readable by
+   assistive technology even though the map itself is aria-hidden. */
+.app__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  align-items: baseline;
+  margin: 0;
+  margin-inline-end: auto;
+}
+
+.app__status-label {
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.app__status-value {
+  color: var(--color-select);
+  font-weight: 700;
+}
+
+.app__status-path {
+  color: var(--color-muted);
+}
+
+.app__status-empty {
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+/*
+ * The map container. It is the element the canvas measures itself against, so it
+ * must have a real size of its own rather than being sized by the canvas.
+ */
+.world {
+  position: relative;
+  flex: 1;
+  /* `min-height: 0` lets the map shrink inside a flex column instead of forcing
+     the shell taller than the viewport, which is what produced scrolling.
+     `min-width: 0` does the same job in the row layout, beside the tree. */
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  border: 3px solid var(--color-frame);
+  border-radius: 2px;
+  background: #2f6b3d;
+  /* Chunky outer frame, in keeping with the tile art. */
+  box-shadow: 0 0 0 3px var(--color-ink);
+}
+
+.world__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Belt and braces: the drawing code disables smoothing on the context, and this
+     keeps the browser from smoothing the element itself when it is scaled. */
+  image-rendering: pixelated;
+  /* `touch-action: none` stops a touch drag from scrolling the page before the
+     pointer handlers see it. */
+  touch-action: none;
+}
+
+/* A pointer cursor only while a folder house is under the pointer, so the map
+   advertises which parts of it are clickable. */
+.world__canvas--over-folder {
+  cursor: pointer;
+}
+
+.world__message {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  padding: 0.5rem 0.9rem;
+  border-radius: 2px;
+  background: rgb(13 18 32 / 85%);
+  color: var(--color-snow);
+  font-size: 0.85rem;
+}
+
+.world__message--error {
+  border: 2px solid #ff8a8a;
+  color: #ffd9d9;
 }
