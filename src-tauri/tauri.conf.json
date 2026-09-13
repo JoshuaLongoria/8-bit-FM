@@ -1,0 +1,31 @@
+{
+ 
+  "app":{
+    
+    "security": {
+        "assetProtocol": {
+            "enable": true,
+            "scope": ["$APPCACHE/**/*", "$RESOURCES/**/*"],
+            "allow": ["$APPCACHE/**/*"],
+            "deny": ["$APPCACHE/**/*"]
+        },
+    
+      "headers": {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp",
+        "Timing-Allow-Origin": [
+          "https://developer.mozilla.org",
+          "https://example.com"
+        ],
+        "X-Content-Type-Options": null, 
+        "Access-Control-Expose-Headers": "Tauri-Custom-Header",
+        "Tauri-Custom-Header": {
+          "key1": "'value1' 'value2'",
+          "key2": "'value3'"
+        }
+      },
+
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost"
+    }
+  }
+}
