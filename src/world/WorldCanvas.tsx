@@ -8,10 +8,23 @@ import { folderAtClientPoint } from './hitTest'
 
 
 /**Impelementation for PC folder picker */
-import{open} from '@tauri-apps/plugin-dialog';
+import { open } from '@tauri-apps/plugin-dialog';
 import{invoke} from '@tauri-apps/api/core';
 import{load} from '../state'
 import type{RepoPayload} from '../types'
+
+// 1. Place the helper function here (outside the component)
+function normalizeNode(node: any): any {
+  if (!node) return node;
+  return {
+    ...node,
+    path: typeof node.path === 'string' ? node.path.replace(/\\/g, '/') : node.path,
+    root: typeof node.root === 'string' ? node.root.replace(/\\/g, '/') : node.root,
+    children: Array.isArray(node.children) ? node.children.map(normalizeNode) : node.children,
+  };
+}
+
+
 
 interface WorldCanvasProps {
   readonly scene: RepositoryScene
@@ -182,11 +195,22 @@ export default function WorldCanvas({ scene, selectedPath, onSelectPath }: World
 
       if(clickedPath === '__PC_HOUSE__'){
         try{
-          const newPayload = await invoke<RepoPayload>('pick_directory')
-          console.log('DEBUG: pick_directory Payload ->', newPayload)
+          const selectedDirectory = await open({
+            directory: true,
+            multiple: false
+          })
 
-          if (newPayload){
-            load(newPayload.repo, newPayload.root)
+          if(selectedDirectory && typeof selectedDirectory === 'string'){
+            console.log('DEBUG: Selected Directory ->', selectedDirectory)
+
+            // Scan that directory using the registered Rust command 'walk_repo'
+            const newPayload = await invoke<RepoPayload>('walk_repo', { path: selectedDirectory })
+            console.log('DEBUG: walk_repo Payload ->', newPayload)
+
+            const payloadAny = newPayload as any;
+            const normalizedNode = normalizeNode(payloadAny.node);
+            
+            load(newPayload.repo, normalizedNode);
           }
         }catch(err){
           console.error('Failed to pick directory:', err)
@@ -194,6 +218,7 @@ export default function WorldCanvas({ scene, selectedPath, onSelectPath }: World
         return
       }
 
+      
       // Clicking empty ground reports `null`, which clears the selection.
       onSelectPath(clickedPath)
     },

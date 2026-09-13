@@ -1,6 +1,6 @@
 import { useSyncExternalStore, useMemo, useEffect, useRef } from 'react'
 import { subscribe, getSnapshot, select, toggle, announce } from './state'
-import type { DirNode } from './types'
+import type { FileNode, DirNode } from './types'
 import { visibleNodes } from './visibleNodes'
 import { invoke } from '@tauri-apps/api/core'
 import './a11y.css'
@@ -18,13 +18,40 @@ function expandDir(node: DirNode) {
   announce(`${node.children.length} immediate entries`)
 }
 
-interface TreeProps {
-  onOpenFile?: (name: string, content: string) => void
+/**
+ * A node's path is its identity: it drives the React key, the data-path
+ * attribute used for focus restoration, and the expanded/selected sets in
+ * state. If it is missing, React reports "Each child in a list should have a
+ * unique key" even though a key prop is present, because an undefined key
+ * counts as no key at all.
+ *
+ * The fallback below keeps rendering stable, but it is a stopgap: the real fix
+ * is whatever is producing a node without a path. The warning points at it.
+ */
+function rowKey(node: FileNode, level: number, posinset: number): string {
+  if (typeof node.path === 'string' && node.path.length > 0) return node.path
+  return `missing-path:${level}:${posinset}:${node.name ?? 'unnamed'}`
 }
 
-async function handleFileOpen(path: string, name: string, onOpenFile?: (name: string, content: string) => void) {
+interface TreeProps {
+  // Currently unused — the tree reads from the external store, not props.
+  // Remove it once no call site passes it.
+  nodes?: FileNode[]
+  onOpenFile?: (name: string, content: string) => void
+  onSelect?: (path: string) => void
+}
+
+async function handleFileOpen(
+  path: string,
+  name: string,
+  onOpenFile?: (name: string, content: string) => void,
+) {
+  if (!path) {
+    console.error('handleFileOpen called without a path', { name })
+    announce(`Cannot load ${name}`)
+    return
+  }
   try {
-    console.log("Sending path to Rust backend:", path);
     const content = await invoke<string>('read_file_content', { path })
     if (onOpenFile) {
       onOpenFile(name, content)
@@ -36,13 +63,42 @@ async function handleFileOpen(path: string, name: string, onOpenFile?: (name: st
   }
 }
 
-export function Tree({ onOpenFile }: TreeProps) {
+export function Tree({ onOpenFile, onSelect }: TreeProps) {
   const state = useSyncExternalStore(subscribe, getSnapshot)
 
   const rows = useMemo(
     () => (state.tree ? visibleNodes(state.tree, state.expanded) : []),
     [state.tree, state.expanded],
   )
+
+  // Diagnostic: surfaces the nodes responsible for the key warning.
+  // Safe to delete once the payload is confirmed clean.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+
+    const missing = rows.filter(
+      r => typeof r.node.path !== 'string' || r.node.path.length === 0,
+    )
+    if (missing.length > 0) {
+      console.warn(
+        `[Tree] ${missing.length} node(s) have no path. These break React keys, ` +
+          `focus restoration, and the expanded/selected sets.`,
+        missing.map(r => r.node),
+      )
+    }
+
+    const seen = new Set<string>()
+    const duplicates = new Set<string>()
+    for (const r of rows) {
+      const p = r.node.path
+      if (typeof p !== 'string' || p.length === 0) continue
+      if (seen.has(p)) duplicates.add(p)
+      seen.add(p)
+    }
+    if (duplicates.size > 0) {
+      console.warn('[Tree] duplicate paths:', [...duplicates])
+    }
+  }, [rows])
 
   const selectedIsVisible = rows.some(row => row.node.path === state.selectedPath)
   const focusedPath = selectedIsVisible
@@ -56,7 +112,7 @@ export function Tree({ onOpenFile }: TreeProps) {
       isFirstRender.current = false
       return
     }
-    if (!focusedPath) return
+    if (typeof focusedPath !== 'string' || focusedPath.length === 0) return
     const el = document.querySelector<HTMLElement>(
       `[role="treeitem"][data-path="${CSS.escape(focusedPath)}"]`,
     )
@@ -106,6 +162,7 @@ export function Tree({ onOpenFile }: TreeProps) {
 
       case 'Enter': {
         select(node.path)
+        onSelect?.(node.path)
         if (isDir) {
           if (node.children.length > 0) {
             if (state.expanded.has(node.path)) {
@@ -141,7 +198,7 @@ export function Tree({ onOpenFile }: TreeProps) {
 
         return (
           <div
-            key={node.path}
+            key={rowKey(node, level, posinset)}
             data-path={node.path}
             role="treeitem"
             aria-level={level}
@@ -155,6 +212,7 @@ export function Tree({ onOpenFile }: TreeProps) {
             style={{ paddingLeft: `${(level - 1) * 16}px` }}
             onClick={() => {
               select(node.path)
+              onSelect?.(node.path)
               if (isDir) {
                 toggle(node.path)
               } else {

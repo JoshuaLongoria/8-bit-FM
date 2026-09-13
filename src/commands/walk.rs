@@ -67,7 +67,7 @@ fn build_node(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
 
-    let absolute_path = path;
+    let absolute_path = path
         .canonicalize()
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| path.to_string_lossy().to_string());

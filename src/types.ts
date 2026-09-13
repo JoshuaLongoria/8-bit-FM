@@ -1,10 +1,7 @@
-
-
 export interface RepoMeta {
-    /* name, branch, is_dirty */
-name: string
-branch: string
-is_dirty: boolean
+  name: string
+  branch: string
+  is_dirty: boolean
 }
 
 interface NodeBase {
@@ -21,18 +18,19 @@ export interface DirNode extends NodeBase {
 
 export interface FileLeaf extends NodeBase {
   kind: 'file'
+  children?: NodeBase[]
 }
 
 export type FileNode = DirNode | FileLeaf
 
 export interface RepoPayload { 
-    repo: RepoMeta
-    root: FileNode }
-
+  repo: RepoMeta
+  root: FileNode 
+}
 
 export interface Row { 
-    node: FileNode
-    level: number
-    posinset: number
-    setsize: number
+  node: FileNode
+  level: number
+  posinset: number
+  setsize: number
 }
