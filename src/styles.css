@@ -11,6 +11,7 @@
   --color-accent: #7fd4ff;
   --color-muted: #9fb0cc;
   --color-frame: #f8f0d0;
+  --color-select: #ffd23f;
 
   color-scheme: dark;
   font-family: ui-monospace, SFMono-Regular, 'Cascadia Mono', Consolas, monospace;
@@ -93,6 +94,37 @@ body {
   white-space: nowrap;
 }
 
+/* Selection status. Ordinary HTML outside the canvas, so it is readable by
+   assistive technology even though the map itself is aria-hidden. */
+.app__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  align-items: baseline;
+  margin: 0;
+  margin-inline-end: auto;
+}
+
+.app__status-label {
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.app__status-value {
+  color: var(--color-select);
+  font-weight: 700;
+}
+
+.app__status-path {
+  color: var(--color-muted);
+}
+
+.app__status-empty {
+  color: var(--color-muted);
+  font-style: italic;
+}
+
 /*
  * The map container. It is the element the canvas measures itself against, so it
  * must have a real size of its own rather than being sized by the canvas.
@@ -118,6 +150,15 @@ body {
   /* Belt and braces: the drawing code disables smoothing on the context, and this
      keeps the browser from smoothing the element itself when it is scaled. */
   image-rendering: pixelated;
+  /* `touch-action: none` stops a touch drag from scrolling the page before the
+     pointer handlers see it. */
+  touch-action: none;
+}
+
+/* A pointer cursor only while a folder house is under the pointer, so the map
+   advertises which parts of it are clickable. */
+.world__canvas--over-folder {
+  cursor: pointer;
 }
 
 .world__message {

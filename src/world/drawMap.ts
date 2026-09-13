@@ -19,6 +19,17 @@ const LABEL_BACKGROUND = 'rgba(16, 22, 34, 0.85)'
 const LABEL_TEXT = '#f4f8ff'
 const LABEL_BORDER = '#f8f0d0'
 
+/** Hover is a light hint; selection is a strong, unmistakable marker. */
+const HOVER_COLOUR = '#fdf6c8'
+const SELECT_COLOUR = '#ffd23f'
+const SELECT_SHADOW = '#3a2a06'
+
+/** What the pointer is currently over and what is chosen. */
+export interface MapHighlight {
+  readonly hoveredPath: string | null
+  readonly selectedPath: string | null
+}
+
 /**
  * Build a small canvas holding one tile drawn at the current zoom, so it can be
  * repeated across a large area in a single fill instead of thousands of draws.
@@ -125,6 +136,53 @@ function clamp(value: number, low: number, high: number): number {
 }
 
 /**
+ * Draw a chunky outline around a building.
+ *
+ * Everything is snapped to whole pixels and drawn with `fillRect` rather than
+ * `strokeRect`, because a stroke straddles its path and lands on half pixels,
+ * which is exactly the soft edge this art style must avoid. Thickness scales with
+ * zoom so the marker stays proportional to the sprites.
+ *
+ * `corners` adds L-shaped brackets at the four corners — a selection marker that
+ * stays legible against a busy roof, and readable for anyone who cannot easily
+ * distinguish the hover and selection colours.
+ */
+function drawOutline(
+  ctx: CanvasRenderingContext2D,
+  bounds: PixelBounds,
+  colour: string,
+  thickness: number,
+  corners: boolean,
+): void {
+  const x = Math.round(bounds.x)
+  const y = Math.round(bounds.y)
+  const w = Math.round(bounds.width)
+  const h = Math.round(bounds.height)
+  const t = Math.max(1, Math.round(thickness))
+
+  ctx.fillStyle = colour
+  // Four sides, drawn just outside the sprite so it never covers the artwork.
+  ctx.fillRect(x - t, y - t, w + t * 2, t)
+  ctx.fillRect(x - t, y + h, w + t * 2, t)
+  ctx.fillRect(x - t, y, t, h)
+  ctx.fillRect(x + w, y, t, h)
+
+  if (!corners) return
+
+  const arm = Math.max(t * 2, Math.round(Math.min(w, h) / 5))
+  const o = t * 2
+  // Top-left, top-right, bottom-left, bottom-right brackets.
+  ctx.fillRect(x - o, y - o, arm, t)
+  ctx.fillRect(x - o, y - o, t, arm)
+  ctx.fillRect(x + w + o - arm, y - o, arm, t)
+  ctx.fillRect(x + w + o - t, y - o, t, arm)
+  ctx.fillRect(x - o, y + h + o - t, arm, t)
+  ctx.fillRect(x - o, y + h + o - arm, t, arm)
+  ctx.fillRect(x + w + o - arm, y + h + o - t, arm, t)
+  ctx.fillRect(x + w + o - t, y + h + o - arm, t, arm)
+}
+
+/**
  * Paint a whole frame.
  *
  * `ctx` is expected to already be scaled for the device pixel ratio, so every
@@ -134,6 +192,7 @@ export function drawMap(
   ctx: CanvasRenderingContext2D,
   layout: WorldLayout,
   assets: LoadedAssets,
+  highlight: MapHighlight = { hoveredPath: null, selectedPath: null },
 ): void {
   // Nearest-neighbour scaling. Without this the browser smooths every sprite and
   // the 8-bit art turns into a blur.
@@ -181,6 +240,26 @@ export function drawMap(
         width: signWidth,
         height: signHeight,
       })
+    }
+  }
+
+  // --- Hover and selection markers ---------------------------------------
+  // Drawn after the buildings so a neighbouring roof cannot cover the marker,
+  // but before the labels so a name is never obscured by an outline.
+  //
+  // Selection is checked first and wins: when the pointer rests on the already
+  // selected house only the stronger marker is drawn, rather than two outlines
+  // fighting over the same edge.
+  for (const object of layout.objects) {
+    if (object.kind !== 'house' || object.folderPath === null) continue
+
+    if (object.folderPath === highlight.selectedPath) {
+      // A dark pass first, offset outward, so the bright marker keeps its
+      // contrast over pale roofs as well as dark grass.
+      drawOutline(ctx, object.bounds, SELECT_SHADOW, layout.zoom * 3, true)
+      drawOutline(ctx, object.bounds, SELECT_COLOUR, layout.zoom * 2, true)
+    } else if (object.folderPath === highlight.hoveredPath) {
+      drawOutline(ctx, object.bounds, HOVER_COLOUR, layout.zoom, false)
     }
   }
 
