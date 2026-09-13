@@ -1,26 +1,40 @@
+import { mockRepository } from './fixtures/mockRepository'
+import WorldCanvas from './world/WorldCanvas'
+
 /**
- * Phase 1 shell: application name, subtitle, and an empty box reserving the
- * space where the Canvas winter scene will live (Phase 4).
+ * Application shell.
  *
- * Intentionally absent until their own phases: Canvas, sprites, animation,
- * mock data, shared state, and Developer 3's accessible file tree.
+ * Still reading from the provisional mock fixture — no Tauri or backend calls yet.
+ * When Developer 1's scanner lands, the adapter swaps in here and nothing below
+ * this line needs to change, because `WorldCanvas` only ever sees a
+ * `RepositoryScene`.
  */
 export default function App() {
+  const scene = mockRepository
+
   return (
     <div className="app">
       <header className="app__header">
         <h1 className="app__title">8-bit FM</h1>
         <p className="app__subtitle">
-          A read-only file explorer that turns a folder into an 8-bit winter scene.
+          A read-only file explorer that turns a folder into an explorable map.
         </p>
       </header>
 
       <main className="app__main">
-        <div className="scene-placeholder">
-          <p className="scene-placeholder__label">Scene placeholder</p>
-          <p className="scene-placeholder__hint">The Canvas winter scene renders here.</p>
-        </div>
+        <WorldCanvas scene={scene} />
       </main>
+
+      <footer className="app__footer">
+        <span className="app__meta">{scene.repositoryName}</span>
+        {scene.git ? (
+          <span className="app__meta">
+            branch {scene.git.branch}
+            {scene.git.dirty ? ' · uncommitted changes' : ''}
+          </span>
+        ) : null}
+        <span className="app__meta">{scene.folders.length} folders</span>
+      </footer>
     </div>
   )
 }
