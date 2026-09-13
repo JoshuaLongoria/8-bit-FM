@@ -6,6 +6,13 @@ import { buildWorldLayout } from './mapLayout'
 import { drawMap } from './drawMap'
 import { folderAtClientPoint } from './hitTest'
 
+
+/**Impelementation for PC folder picker */
+import{open} from '@tauri-apps/plugin-dialog';
+import{invoke} from '@tauri-apps/api/core';
+import{load} from '../state'
+import type{RepoPayload} from '../types'
+
 interface WorldCanvasProps {
   readonly scene: RepositoryScene
   /**
@@ -167,11 +174,28 @@ export default function WorldCanvas({ scene, selectedPath, onSelectPath }: World
   }, [])
 
   const handlePointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    async(event: ReactPointerEvent<HTMLCanvasElement>) => {
       // Ignore anything but the primary button; a right-click should not select.
       if (event.button !== 0) return
+
+      const clickedPath = folderAtEvent(event)
+
+      if(clickedPath === '__PC_HOUSE__'){
+        try{
+          const newPayload = await invoke<RepoPayload>('pick_directory')
+          console.log('DEBUG: pick_directory Payload ->', newPayload)
+
+          if (newPayload){
+            load(newPayload.repo, newPayload.root)
+          }
+        }catch(err){
+          console.error('Failed to pick directory:', err)
+        }
+        return
+      }
+
       // Clicking empty ground reports `null`, which clears the selection.
-      onSelectPath(folderAtEvent(event))
+      onSelectPath(clickedPath)
     },
     [folderAtEvent, onSelectPath],
   )

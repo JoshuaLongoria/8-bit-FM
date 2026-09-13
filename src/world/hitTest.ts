@@ -96,11 +96,15 @@ export function hitTestFolder(layout: WorldLayout, point: CanvasPoint | null): s
   }
   for (let i = layout.objects.length - 1; i >= 0; i--) {
     const object = layout.objects[i]
-    if (!object || object.kind !== 'house' || object.folderPath === null) {
+    if (!object || !containsPoint(object.bounds, point)) {
       continue
     }
-    if (containsPoint(object.bounds, point)) {
+    if (object.kind === 'house' && object.folderPath !== null) {
       return object.folderPath
+    }
+    // Detect clicks on the P.C. house or non-folder background structures
+    if (object.kind !== 'house' || object.folderPath === null) {
+      return '__PC_HOUSE__'
     }
   }
   return null
