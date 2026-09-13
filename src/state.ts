@@ -48,7 +48,10 @@ export function load(repo: RepoMeta, tree: FileNode): void {
   }
   emit()
 }
-
+// `null` clears the selection: the map reports it when the user clicks empty
+// grass. Widening the parameter rather than adding a second `clearSelection()`
+// keeps one intent for "the selection is now X" and lets the canvas pass its
+// hit-test result straight through, hit or miss.
 export function select(path: string | null): void {
   if (path === snapshot.selectedPath) return
   snapshot = { ...snapshot, selectedPath: path }
