@@ -32,6 +32,7 @@ load(payload.repo, payload.root)
  */
 const scene = parseRepoScan(payload)
 
+
 export default function App() {
   /**
    * `state.ts` is the ONE selection owner.
@@ -41,7 +42,7 @@ export default function App() {
    * the selection anywhere to drift out of sync.
    */
   const state = useSyncExternalStore(subscribe, getSnapshot)
-
+  const { announcement } = state
   // The selection may be any node in the tree — a nested folder or a file — not
   // just one of the top-level folders that get a house, so the display name comes
   // from the path itself rather than from a lookup that would miss most nodes.
@@ -95,6 +96,17 @@ export default function App() {
         ) : null}
         <span className="app__meta">{scene.folders.length} folders</span>
       </footer>
+      {/*
+        The single live region for the whole app. Everything routes through
+        announce() in state.ts rather than writing to the DOM directly.
+
+        No React key on purpose: a keyed element gets remounted and arrives
+        already populated, which screen readers usually don't announce. The
+        nonce varies the text instead.
+      */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {announcement.nonce % 2 ? announcement.text + '\u00A0' : announcement.text}
+      </div>
     </div>
   )
 }
