@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import repoJson from './mock-repo.json'
 import type { RepoPayload } from './types'
 import { getSnapshot, load, select, subscribe } from './state'
@@ -6,17 +6,9 @@ import { Tree } from './tree'
 import { parseRepoScan } from './scene/parseRepoScan'
 import WorldCanvas from './world/WorldCanvas'
 
+
 /**
  * Application shell — two views of one repository.
- *
- * The accessible tree and the visual map are the same data drawn two ways. Both
- * read their selection from `state.ts` and both report changes back to it, so
- * whichever one the user touches, the other follows.
- *
- * Still reading from the provisional mock fixture — no Tauri or backend calls
- * yet. When Developer 1's scanner lands it replaces `repoJson` here and nothing
- * downstream changes: the tree already consumes `RepoPayload`, and the map only
- * ever sees the `RepositoryScene` that `parseRepoScan` produces from it.
  */
 const payload = repoJson as unknown as RepoPayload
 
@@ -25,28 +17,16 @@ load(payload.repo, payload.root)
 
 /**
  * The map's view of the same payload, built once at module scope.
- *
- * Deliberately not computed during render: `WorldCanvas` memoises its layout on
- * the identity of this object, so rebuilding it every render would throw the
- * layout away on every keystroke and hover.
  */
 const scene = parseRepoScan(payload)
 
-
 export default function App() {
-  /**
-   * `state.ts` is the ONE selection owner.
-   *
-   * Both this component and `Tree` subscribe to it with `useSyncExternalStore`,
-   * which is what makes the canvas and the tree agree: there is no second copy of
-   * the selection anywhere to drift out of sync.
-   */
   const state = useSyncExternalStore(subscribe, getSnapshot)
   const { announcement } = state
-  // The selection may be any node in the tree — a nested folder or a file — not
-  // just one of the top-level folders that get a house, so the display name comes
-  // from the path itself rather than from a lookup that would miss most nodes.
   const selectedName = state.selectedPath?.split('/').pop() ?? null
+
+  // State to track the currently open file content for the preview modal
+  const [activeFile, setActiveFile] = useState<{ name: string; content: string } | null>(null)
 
   return (
     <div className="app">
@@ -58,23 +38,27 @@ export default function App() {
       </header>
 
       <main className="app__main">
-        {/* Developer 3's accessible tree: the keyboard and screen-reader route. */}
+        {/* Pass the file open handler down to Tree */}
         <div className="app__tree">
-          <Tree />
+          <Tree onOpenFile={(name, content) => setActiveFile({ name, content })} />
         </div>
 
-        {/*
-          The visual map. `aria-hidden` inside, and driven by the same store —
-          `select` accepts `null`, so clicking empty grass clears the selection.
-        */}
         <WorldCanvas scene={scene} selectedPath={state.selectedPath} onSelectPath={select} />
       </main>
 
-      {/*
-        The status line is ordinary HTML outside the aria-hidden canvas, so the
-        selection is announced to assistive technology even though the picture
-        itself is not. `aria-live` reports changes without stealing focus.
-      */}
+      {/* File Preview Modal Overlay */}
+      {activeFile && (
+        <div className="file-modal-overlay" style={modalOverlayStyle}>
+          <div className="file-modal" style={modalStyle}>
+            <div style={modalHeaderStyle}>
+              <h3>{activeFile.name}</h3>
+              <button onClick={() => setActiveFile(null)} style={closeBtnStyle}>✕</button>
+            </div>
+            <pre style={preStyle}>{activeFile.content}</pre>
+          </div>
+        </div>
+      )}
+
       <footer className="app__footer">
         <p className="app__status" role="status" aria-live="polite">
           {state.selectedPath ? (
@@ -96,17 +80,29 @@ export default function App() {
         ) : null}
         <span className="app__meta">{scene.folders.length} folders</span>
       </footer>
-      {/*
-        The single live region for the whole app. Everything routes through
-        announce() in state.ts rather than writing to the DOM directly.
 
-        No React key on purpose: a keyed element gets remounted and arrives
-        already populated, which screen readers usually don't announce. The
-        nonce varies the text instead.
-      */}
       <div role="status" aria-live="polite" className="sr-only">
         {announcement.nonce % 2 ? announcement.text + '\u00A0' : announcement.text}
       </div>
     </div>
   )
+}
+
+// Inline styles for the preview modal
+const modalOverlayStyle: React.CSSProperties = {
+  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+  backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+}
+const modalStyle: React.CSSProperties = {
+  backgroundColor: '#1e1e2e', color: '#cdd6f4', width: '70%', height: '70%',
+  borderRadius: '8px', display: 'flex', flexDirection: 'column', border: '2px solid #45475a', overflow: 'hidden'
+}
+const modalHeaderStyle: React.CSSProperties = {
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', backgroundColor: '#11111b'
+}
+const closeBtnStyle: React.CSSProperties = {
+  background: 'none', border: 'none', color: '#cdd6f4', fontSize: '18px', cursor: 'pointer'
+}
+const preStyle: React.CSSProperties = {
+  padding: '16px', margin: 0, overflow: 'auto', flex: 1, fontFamily: 'monospace', fontSize: '14px'
 }
