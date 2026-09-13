@@ -1,6 +1,6 @@
 /**
- * Turns repository facts into a picture plan: where every building, tree and path
- * sits, in CSS pixels.
+ * Turns repository facts into a picture plan: where every building, tree, path and
+ * label sits, in CSS pixels.
  *
  * Architectural reference (concepts only, no code copied): pokeemerald's
  * `src/fieldmap.c` builds a grid of blocks and then places objects onto it. Same
@@ -8,19 +8,27 @@
  *
  * This module is deliberately PURE: it imports no React, touches no canvas, and
  * loads no images. Give it a scene and a size, get back plain numbers. That means
- * it can be unit-tested in Phase UI-2 without a browser, and — importantly — the
- * same returned object feeds both drawing and hit testing, so what you see and
- * what you can click can never drift apart.
+ * it can be unit-tested without a browser, and — importantly — the same returned
+ * object feeds both drawing and hit testing, so what you see and what you can
+ * click can never drift apart. Path rectangles live here too, rather than being
+ * recomputed inside the drawing code.
  */
 import type { RepositoryScene, SceneFolder } from '../scene/sceneTypes'
 import {
-  HOUSE_SPRITES,
-  POKE_CENTER_SPRITE,
+  BUILDING_ROWS,
+  DOOR_TILES,
+  HOUSE_DESIGNS,
+  POKE_CENTER_DESIGN,
   PLAYER_SPRITE,
+  ROOF_ROWS,
   SOURCE_CELL,
+  SOURCE_TILE,
   TREE_SPRITE,
+  doorSprite,
+  wallSprite,
+  type BuildingDesign,
 } from './tileCatalog'
-import type { PixelBounds, WorldLayout, WorldObject } from './worldTypes'
+import type { PixelBounds, SpritePart, WorldLayout, WorldObject } from './worldTypes'
 
 /** Magnification bounds. Integers only, so pixels stay square and crisp. */
 export const MIN_ZOOM = 1
@@ -29,11 +37,17 @@ export const MAX_ZOOM = 4
 /** How many folders can become houses. */
 export const MAX_HOUSES = 3
 
+/** Building widths in source tiles. Wide enough to read as buildings, not towers. */
+export const HOUSE_TILES = 6
+export const CENTER_TILES = 8
+
 /**
  * Vertical space the scene needs, in source pixels before magnification:
- * Poké Center (48) + gap (8) + path (16) + gap (8) + house (48) + label (16).
+ * label (16) + Poké Center (48) + gap (8) + path (16) + gap (8) + house (48)
+ * + label (16). The two label allowances are why the Centre's name can sit above
+ * its roof without being pushed into the tree line.
  */
-const STACK_SOURCE_HEIGHT = 144
+const STACK_SOURCE_HEIGHT = 160
 
 /**
  * Vertical space the tree border eats. The top and bottom rows are deliberately
@@ -44,6 +58,9 @@ const BORDER_SOURCE_HEIGHT = 48
 
 /** Rough source width needed before another magnification step is worthwhile. */
 const WIDTH_PER_ZOOM_STEP = 320
+
+/** Label allowance in source pixels, above the Centre and below each house. */
+const LABEL_SOURCE_HEIGHT = 16
 
 /**
  * Rank folders for display: most files first, ties broken alphabetically.
@@ -90,17 +107,101 @@ function snapToCell(value: number, cellPx: number): number {
   return Math.floor(value / cellPx) * cellPx
 }
 
+/**
+ * Snap to the *nearest* grid cell rather than the one below.
+ *
+ * Buildings are centred in a slot and then snapped. Flooring always pushes them
+ * left, by up to a whole cell, which is enough to make three evenly-spaced houses
+ * look visibly unevenly spaced. Rounding keeps them near their true centres while
+ * still landing on the tile grid.
+ */
+function snapToCellRound(value: number, cellPx: number): number {
+  return Math.round(value / cellPx) * cellPx
+}
+
 /** Keep a value inside a range; used so nothing escapes the canvas. */
 function clamp(value: number, low: number, high: number): number {
   return Math.max(low, Math.min(high, value))
 }
 
 /**
+ * Assemble one building: a roof of repeated middle slices between two edge
+ * slices, a body of repeated wall segments, and a door centred at the bottom.
+ *
+ * Building it from parts is what gives every house a visible roof, body and door
+ * at any width.
+ */
+function buildingParts(
+  design: BuildingDesign,
+  x: number,
+  y: number,
+  widthTiles: number,
+  zoom: number,
+): readonly SpritePart[] {
+  const tile = SOURCE_TILE * zoom
+  const roofH = ROOF_ROWS * SOURCE_TILE * zoom
+  const bodyH = BUILDING_ROWS * SOURCE_TILE * zoom - roofH
+  const parts: SpritePart[] = []
+  const palette = design.palette === 'none' ? 'roofRed' : design.palette
+
+  // Roof: left edge, as many middles as needed, right edge.
+  for (let i = 0; i < widthTiles; i++) {
+    const sprite =
+      i === 0 ? design.roofLeft : i === widthTiles - 1 ? design.roofRight : design.roofMid
+    parts.push({
+      sprite,
+      bounds: { x: x + i * tile, y, width: tile, height: roofH },
+    })
+  }
+
+  // Body: a plain wall right across, so the door can sit on top of it.
+  const wall = wallSprite(palette)
+  for (let i = 0; i < widthTiles; i++) {
+    parts.push({
+      sprite: wall,
+      bounds: { x: x + i * tile, y: y + roofH, width: tile, height: bodyH },
+    })
+  }
+
+  // Door: centred, and snapped to a whole tile so it lines up with the wall.
+  const doorTiles = Math.min(DOOR_TILES, widthTiles)
+  const doorOffset = Math.floor((widthTiles - doorTiles) / 2)
+  parts.push({
+    sprite: doorSprite(palette),
+    bounds: {
+      x: x + doorOffset * tile,
+      y: y + roofH,
+      width: doorTiles * tile,
+      height: bodyH,
+    },
+  })
+
+  return parts
+}
+
+/** A single-sprite object, used for trees and the player. */
+function simpleObject(
+  kind: WorldObject['kind'],
+  sprite: SpritePart['sprite'],
+  bounds: PixelBounds,
+): WorldObject {
+  return {
+    kind,
+    parts: [{ sprite, bounds }],
+    bounds,
+    label: null,
+    labelAnchor: 'below',
+    folderPath: null,
+  }
+}
+
+/**
  * Build the complete picture plan.
  *
  * Layout, top to bottom: a ring of trees around the edge, the Poké Center standing
- * for the whole repository, a walking path across the middle with the player on it,
- * and up to three houses below — one per largest folder.
+ * for the whole repository with its name above it, a walking path across the
+ * middle with the player on it, and up to three houses below — one per largest
+ * folder, each joined to the main path by its own spur.
  */
 export function buildWorldLayout(
   scene: RepositoryScene,
@@ -114,15 +215,15 @@ export function buildWorldLayout(
 
   const zoom = chooseZoom(width, height)
   const cellPx = SOURCE_CELL * zoom
+  const tilePx = SOURCE_TILE * zoom
   const cols = Math.max(1, Math.floor(width / cellPx))
   const rows = Math.max(1, Math.floor(height / cellPx))
 
   const treeW = TREE_SPRITE.rect.sw * zoom
   const treeH = TREE_SPRITE.rect.sh * zoom
-  const houseW = HOUSE_SPRITES[0] ? HOUSE_SPRITES[0].rect.sw * zoom : 0
-  const houseH = HOUSE_SPRITES[0] ? HOUSE_SPRITES[0].rect.sh * zoom : 0
-  const centerW = POKE_CENTER_SPRITE.rect.sw * zoom
-  const centerH = POKE_CENTER_SPRITE.rect.sh * zoom
+  const buildingH = BUILDING_ROWS * SOURCE_TILE * zoom
+  const houseW = HOUSE_TILES * SOURCE_TILE * zoom
+  const centerW = CENTER_TILES * SOURCE_TILE * zoom
   const playerW = PLAYER_SPRITE.rect.sw * zoom
   const playerH = PLAYER_SPRITE.rect.sh * zoom
 
@@ -145,44 +246,63 @@ export function buildWorldLayout(
   // Deriving them from percentages of the height instead would let the Centre,
   // the path and the houses land on top of one another on short canvases.
   const gap = 8 * zoom
-  const labelSpace = 16 * zoom
-  const pathBandH = SOURCE_CELL * zoom
-  const stackHeight = centerH + gap + pathBandH + gap + houseH + labelSpace
+  const labelSpace = LABEL_SOURCE_HEIGHT * zoom
+  const pathBandH = cellPx
+  const stackHeight = labelSpace + buildingH + gap + pathBandH + gap + buildingH + labelSpace
 
-  // Centre the stack in whatever room the clearing has.
   const stackTop = innerTop + Math.max(0, (innerBottom - innerTop - stackHeight) / 2)
-  const centerY = clamp(snapToCell(stackTop, cellPx), 0, Math.max(0, height - centerH))
-  const pathY = clamp(centerY + centerH + gap, 0, Math.max(0, height - pathBandH))
-  const houseY = clamp(pathY + pathBandH + gap, 0, Math.max(0, height - houseH))
+  // The Centre's label sits above its roof, so the roof starts one label down.
+  const centerY = clamp(
+    snapToCell(stackTop + labelSpace, cellPx),
+    labelSpace,
+    Math.max(0, height - buildingH),
+  )
+  const pathY = clamp(centerY + buildingH + gap, 0, Math.max(0, height - pathBandH))
+  const houseY = clamp(pathY + pathBandH + gap, 0, Math.max(0, height - buildingH))
 
   const objects: WorldObject[] = []
+  const paths: PixelBounds[] = []
 
   // --- Tree border -------------------------------------------------------
-  // Drawn first so the buildings overlap them rather than the other way round.
+  // Pushed first so the buildings overlap them rather than the other way round.
   // Rows start half a tree off the edge and run one past it, so no gap can open
   // up in a corner whatever the canvas size.
   for (let x = -halfTreeW; x < width + halfTreeW; x += treeW) {
-    objects.push(makeTree(x, -halfTreeH, treeW, treeH))
-    objects.push(makeTree(x, height - halfTreeH, treeW, treeH))
+    objects.push(simpleObject('tree', TREE_SPRITE, { x, y: -halfTreeH, width: treeW, height: treeH }))
+    objects.push(
+      simpleObject('tree', TREE_SPRITE, { x, y: height - halfTreeH, width: treeW, height: treeH }),
+    )
   }
   for (let y = halfTreeH; y < height - halfTreeH; y += treeH) {
-    objects.push(makeTree(-halfTreeW, y, treeW, treeH))
-    objects.push(makeTree(width - halfTreeW, y, treeW, treeH))
+    objects.push(simpleObject('tree', TREE_SPRITE, { x: -halfTreeW, y, width: treeW, height: treeH }))
+    objects.push(
+      simpleObject('tree', TREE_SPRITE, { x: width - halfTreeW, y, width: treeW, height: treeH }),
+    )
   }
+
+  // --- Main path ---------------------------------------------------------
+  paths.push({ x: 0, y: pathY, width, height: pathBandH })
 
   // --- Poké Center: the repository itself --------------------------------
   const centerX = clamp(
-    snapToCell((width - centerW) / 2, cellPx),
+    snapToCellRound((width - centerW) / 2, cellPx),
     0,
     Math.max(0, width - centerW),
   )
+  const centerBounds: PixelBounds = { x: centerX, y: centerY, width: centerW, height: buildingH }
   objects.push({
     kind: 'pokeCenter',
-    sprite: POKE_CENTER_SPRITE,
-    bounds: { x: centerX, y: centerY, width: centerW, height: centerH },
+    parts: buildingParts(POKE_CENTER_DESIGN, centerX, centerY, CENTER_TILES, zoom),
+    bounds: centerBounds,
     label: scene.repositoryName,
+    // Above the roof, which keeps the repository name clear of the player and the
+    // door standing directly beneath it.
+    labelAnchor: 'above',
     folderPath: null,
   })
+
+  // Spur joining the Centre's door down to the main path.
+  paths.push(spur(centerX + centerW / 2, centerY + buildingH, pathY, tilePx * DOOR_TILES, width))
 
   // --- Houses: one per largest folder ------------------------------------
   // `slice` copes with fewer than three folders on its own — an empty repository
@@ -191,53 +311,54 @@ export function buildWorldLayout(
   const slotWidth = ranked.length > 0 ? innerWidth / ranked.length : innerWidth
 
   ranked.forEach((folder, index) => {
-    // `HOUSE_SPRITES` has one design per slot; fall back to the first so an
-    // unexpected index can never produce an undefined sprite.
-    const sprite = HOUSE_SPRITES[index] ?? HOUSE_SPRITES[0]
-    if (!sprite) {
-      return
-    }
+    // One design per slot; fall back to the first so an unexpected index can
+    // never produce an undefined design.
+    const design = HOUSE_DESIGNS[index] ?? HOUSE_DESIGNS[0]
+    if (!design) return
+
     const slotCentre = innerLeft + slotWidth * index + slotWidth / 2
     const x = clamp(
-      snapToCell(slotCentre - houseW / 2, cellPx),
+      snapToCellRound(slotCentre - houseW / 2, cellPx),
       innerLeft,
       Math.max(innerLeft, innerRight - houseW),
     )
     objects.push({
       kind: 'house',
-      sprite,
-      bounds: { x, y: houseY, width: houseW, height: houseH },
+      parts: buildingParts(design, x, houseY, HOUSE_TILES, zoom),
+      bounds: { x, y: houseY, width: houseW, height: buildingH },
       label: folder.name,
+      labelAnchor: 'below',
       folderPath: folder.path,
     })
+
+    // Spur joining this house's door up to the main path.
+    paths.push(spur(x + houseW / 2, pathY + pathBandH, houseY, tilePx * DOOR_TILES, width))
   })
 
-  // --- Player: stationary, standing on the path below the Center ---------
+  // --- Player: stationary, standing on the path --------------------------
+  // Placed clear of the Poké Center's footprint, not merely offset from its
+  // centre: the player is two tiles tall and the path runs close under the
+  // building, so an offset alone leaves the player standing inside the wall.
+  // Prefer the right of the building, and fall back to its left when a narrow
+  // canvas leaves no room there.
+  const rightOfCentre = centerX + centerW + tilePx
+  const leftOfCentre = centerX - playerW - tilePx
   const playerX = clamp(
-    Math.round(centerX + (centerW - playerW) / 2),
+    Math.round(
+      rightOfCentre + playerW <= width ? rightOfCentre : leftOfCentre >= 0 ? leftOfCentre : rightOfCentre,
+    ),
     0,
     Math.max(0, width - playerW),
   )
   const playerY = clamp(pathY + pathBandH - playerH, 0, Math.max(0, height - playerH))
-  objects.push({
-    kind: 'player',
-    sprite: PLAYER_SPRITE,
-    bounds: { x: playerX, y: playerY, width: playerW, height: playerH },
-    label: null,
-    folderPath: null,
-  })
-
-  // --- Paths -------------------------------------------------------------
-  // One horizontal road, plus a short spur linking the Poké Center door to it.
-  const paths: PixelBounds[] = [
-    { x: 0, y: pathY, width, height: pathBandH },
-    {
-      x: snapToCell(centerX + centerW / 2 - cellPx / 2, cellPx),
-      y: Math.min(centerY + centerH, pathY),
-      width: cellPx,
-      height: Math.max(0, pathY - (centerY + centerH)),
-    },
-  ]
+  objects.push(
+    simpleObject('player', PLAYER_SPRITE, {
+      x: playerX,
+      y: playerY,
+      width: playerW,
+      height: playerH,
+    }),
+  )
 
   return {
     widthPx: width,
@@ -251,12 +372,21 @@ export function buildWorldLayout(
   }
 }
 
-function makeTree(x: number, y: number, width: number, height: number): WorldObject {
-  return {
-    kind: 'tree',
-    sprite: TREE_SPRITE,
-    bounds: { x, y, width, height },
-    label: null,
-    folderPath: null,
-  }
+/**
+ * A vertical path segment joining a building to the main path.
+ *
+ * `fromY` and `toY` may arrive in either order — a house sits below the path and
+ * the Centre above it — so the segment is normalised rather than trusted.
+ */
+function spur(
+  centreX: number,
+  fromY: number,
+  toY: number,
+  width: number,
+  canvasWidth: number,
+): PixelBounds {
+  const top = Math.min(fromY, toY)
+  const bottom = Math.max(fromY, toY)
+  const x = clamp(Math.round(centreX - width / 2), 0, Math.max(0, canvasWidth - width))
+  return { x, y: top, width, height: Math.max(0, bottom - top) }
 }

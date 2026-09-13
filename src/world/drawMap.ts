@@ -2,19 +2,20 @@
  * Paints a `WorldLayout` onto a canvas.
  *
  * This module makes no decisions about *where* things go — `mapLayout.ts` already
- * decided that. It only turns the plan into pixels, in back-to-front order:
- * ground, then paths, then objects, then labels.
+ * decided that, paths included. It only turns the plan into pixels, in
+ * back-to-front order: ground, then paths, then buildings, then labels. That order
+ * is what keeps paths underneath the buildings, the player and the labels.
  *
  * Architectural reference (concepts only, no code copied): pokeemerald's
  * `src/sprite.c` draws sprites from a sheet in a fixed priority order; the same
  * back-to-front discipline is what stops a tree covering a house here.
  */
-import { GRASS_TILE, PATH_TILE, POKE_CENTER_SIGN, SOURCE_TILE } from './tileCatalog'
+import { GRASS_TILE, PATH_TILE, POKE_CENTER_SIGN } from './tileCatalog'
 import { sheetFor, type LoadedAssets } from './assetLoader'
 import type { PixelBounds, TileSprite, WorldLayout, WorldObject } from './worldTypes'
 
-/** Colour used behind labels so folder names stay readable over any terrain. */
-const LABEL_BACKGROUND = 'rgba(16, 22, 34, 0.82)'
+/** Colour used behind labels so names stay readable over any terrain. */
+const LABEL_BACKGROUND = 'rgba(16, 22, 34, 0.85)'
 const LABEL_TEXT = '#f4f8ff'
 const LABEL_BORDER = '#f8f0d0'
 
@@ -61,6 +62,7 @@ function drawSprite(
 ): void {
   const sheet = sheetFor(assets, sprite)
   if (!sheet) return
+  if (bounds.width <= 0 || bounds.height <= 0) return
   ctx.drawImage(
     sheet,
     sprite.rect.sx,
@@ -74,7 +76,13 @@ function drawSprite(
   )
 }
 
-/** Draw a label plate centred beneath an object. */
+/**
+ * Draw a label plate on the side of the object its anchor names.
+ *
+ * The anchor is decided by the layout, not here: the repository name goes above
+ * the Poké Center so it cannot cover the Centre's door or the player standing on
+ * the path below, while folder names go beneath their houses.
+ */
 function drawLabel(
   ctx: CanvasRenderingContext2D,
   object: WorldObject,
@@ -87,15 +95,20 @@ function drawLabel(
   ctx.textAlign = 'center'
   ctx.textBaseline = 'top'
 
-  const textWidth = ctx.measureText(object.label).width
   const padX = 6
-  const padY = 4
-  const boxWidth = textWidth + padX * 2
+  const padY = 3
+  const boxWidth = ctx.measureText(object.label).width + padX * 2
   const boxHeight = fontSize + padY * 2
   const centreX = object.bounds.x + object.bounds.width / 2
+  const gap = 4
+
   // Keep the plate inside the canvas even for objects near an edge.
-  const boxX = Math.max(2, Math.min(layout.widthPx - boxWidth - 2, centreX - boxWidth / 2))
-  const boxY = Math.min(layout.heightPx - boxHeight - 2, object.bounds.y + object.bounds.height + 4)
+  const boxX = clamp(centreX - boxWidth / 2, 2, Math.max(2, layout.widthPx - boxWidth - 2))
+  const rawY =
+    object.labelAnchor === 'above'
+      ? object.bounds.y - boxHeight - gap
+      : object.bounds.y + object.bounds.height + gap
+  const boxY = clamp(rawY, 2, Math.max(2, layout.heightPx - boxHeight - 2))
 
   ctx.fillStyle = LABEL_BACKGROUND
   ctx.fillRect(boxX, boxY, boxWidth, boxHeight)
@@ -105,6 +118,10 @@ function drawLabel(
 
   ctx.fillStyle = LABEL_TEXT
   ctx.fillText(object.label, boxX + boxWidth / 2, boxY + padY)
+}
+
+function clamp(value: number, low: number, high: number): number {
+  return Math.max(low, Math.min(high, value))
 }
 
 /**
@@ -134,6 +151,8 @@ export function drawMap(
   }
 
   // --- Walking paths -----------------------------------------------------
+  // Every rectangle comes straight from the layout, including the spurs joining
+  // each building to the main path. Nothing is recomputed here.
   const path = makeTilePattern(ctx, PATH_TILE, assets, layout.zoom)
   if (path) {
     ctx.fillStyle = path
@@ -145,17 +164,20 @@ export function drawMap(
   }
 
   // --- Objects -----------------------------------------------------------
-  // `layout.objects` is already in back-to-front order.
+  // `layout.objects` is already in back-to-front order, and each object carries
+  // the pieces it is assembled from.
   for (const object of layout.objects) {
-    drawSprite(ctx, object.sprite, assets, object.bounds)
+    for (const part of object.parts) {
+      drawSprite(ctx, part.sprite, assets, part.bounds)
+    }
 
-    // The Poké Center gets its "P.C" signboard hung above the door.
+    // The Poké Center gets its "P.C" signboard hung on the roof above the door.
     if (object.kind === 'pokeCenter') {
       const signWidth = POKE_CENTER_SIGN.rect.sw * layout.zoom
       const signHeight = POKE_CENTER_SIGN.rect.sh * layout.zoom
       drawSprite(ctx, POKE_CENTER_SIGN, assets, {
         x: object.bounds.x + (object.bounds.width - signWidth) / 2,
-        y: object.bounds.y + object.bounds.height - signHeight - SOURCE_TILE * layout.zoom,
+        y: object.bounds.y + object.bounds.height - signHeight - 16 * layout.zoom,
         width: signWidth,
         height: signHeight,
       })
@@ -163,7 +185,7 @@ export function drawMap(
   }
 
   // --- Labels ------------------------------------------------------------
-  // Drawn last so no building can cover a folder name.
+  // Drawn last so no building can cover a name.
   for (const object of layout.objects) {
     drawLabel(ctx, object, layout)
   }

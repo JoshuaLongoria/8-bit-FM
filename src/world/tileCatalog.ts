@@ -136,30 +136,82 @@ export const TREE_SPRITE: TileSprite = {
   rect: cells(0, 4, 5, 6),
 }
 
-/** The "P.C" signboard, general sheet cols 6-8 rows 19-20. */
+/**
+ * The "P.C" signboard, general sheet cols 7-8 row 19-20.
+ *
+ * It starts at column 7, not column 6. Column 6 holds the left half of a
+ * *different* signboard, and including it put a stray glyph beside the "P.C".
+ */
 export const POKE_CENTER_SIGN: TileSprite = {
   sheet: 'general',
   palette: 'sign',
-  rect: cells(6, 19, 3, 2),
+  rect: cells(7, 19, 2, 2),
 }
+
+/* --------------------------------------------------------------------------
+ * Building parts
+ *
+ * The sheets contain no whole houses — only roof edges, roof middles, wall
+ * segments and doors. A building is assembled from those, which is what lets it
+ * be any width. Taking a single fixed cutout instead is what made the first
+ * attempt look like a narrow tower.
+ *
+ * Every building is four tiles of roof (32px) above two tiles of body (16px).
+ * ----------------------------------------------------------------------- */
+
+/** Rows 0-3 of the Petalburg sheet are roof; rows 4-5 are body. */
+export const ROOF_ROWS = 4
+export const BODY_ROWS = 2
+export const BUILDING_ROWS = ROOF_ROWS + BODY_ROWS
+
+/** One building design: a roof in three horizontal slices, plus a colour. */
+export interface BuildingDesign {
+  readonly palette: PaletteId
+  readonly roofLeft: TileSprite
+  readonly roofMid: TileSprite
+  readonly roofRight: TileSprite
+}
+
+function roofDesign(startCol: number, palette: Exclude<PaletteId, 'none'>): BuildingDesign {
+  const part = (col: number): TileSprite => ({
+    sheet: 'petalburg',
+    palette,
+    rect: cells(col, 0, 1, ROOF_ROWS),
+  })
+  return {
+    palette,
+    roofLeft: part(startCol),
+    roofMid: part(startCol + 1),
+    roofRight: part(startCol + 2),
+  }
+}
+
+/** A plain wall segment (Petalburg col 9, rows 4-5) that repeats cleanly. */
+export function wallSprite(palette: Exclude<PaletteId, 'none'>): TileSprite {
+  return { sheet: 'petalburg', palette, rect: cells(9, 4, 1, BODY_ROWS) }
+}
+
+/** A framed double door (Petalburg cols 8-9, rows 8-9), two tiles square. */
+export function doorSprite(palette: Exclude<PaletteId, 'none'>): TileSprite {
+  return { sheet: 'petalburg', palette, rect: cells(8, 8, 2, 2) }
+}
+
+/** Width of the door in source tiles. */
+export const DOOR_TILES = 2
 
 /**
- * Three visually distinct house fronts from the Petalburg sheet, each three tiles
- * wide and six tall. One per folder, so the three biggest folders are told apart
- * by shape as well as by label.
+ * Three visually distinct house designs. Each pairs a different roof pattern with
+ * a different colour, so the three biggest folders are told apart at a glance and
+ * not only by their labels.
  */
-export const HOUSE_SPRITES: readonly TileSprite[] = [
-  { sheet: 'petalburg', palette: 'roofRed', rect: cells(2, 0, 3, 6) },
-  { sheet: 'petalburg', palette: 'roofBlue', rect: cells(5, 0, 3, 6) },
-  { sheet: 'petalburg', palette: 'roofOrange', rect: cells(8, 0, 3, 6) },
+export const HOUSE_DESIGNS: readonly BuildingDesign[] = [
+  roofDesign(2, 'roofRed'),
+  roofDesign(5, 'roofBlue'),
+  roofDesign(8, 'roofOrange'),
 ]
 
-/** The Poké Center building: a house front repainted in Center red-and-white. */
-export const POKE_CENTER_SPRITE: TileSprite = {
-  sheet: 'petalburg',
-  palette: 'pokeCenter',
-  rect: cells(5, 0, 3, 6),
-}
+/** The Poké Center: the banded roof repainted in Centre red-and-white. */
+export const POKE_CENTER_DESIGN: BuildingDesign = roofDesign(5, 'pokeCenter')
 
 /**
  * Brendan standing still, facing the camera.
@@ -180,9 +232,12 @@ export const REQUIRED_VARIANTS: readonly TileSprite[] = [
   PATH_TILE,
   TREE_SPRITE,
   POKE_CENTER_SIGN,
-  POKE_CENTER_SPRITE,
   PLAYER_SPRITE,
-  ...HOUSE_SPRITES,
+  ...[...HOUSE_DESIGNS, POKE_CENTER_DESIGN].flatMap((design) => [
+    design.roofLeft,
+    design.roofMid,
+    design.roofRight,
+  ]),
 ]
 
 /** Cache key identifying one recoloured sheet. */

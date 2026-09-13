@@ -54,6 +54,22 @@ export interface TileSprite {
 /** What a placed object represents, which decides how it is drawn and labelled. */
 export type WorldObjectKind = 'house' | 'pokeCenter' | 'tree' | 'player'
 
+/** Where an object's label sits relative to it. */
+export type LabelAnchor = 'above' | 'below'
+
+/**
+ * One sprite drawn at one place.
+ *
+ * Buildings are assembled from several of these — a roof edge, repeated roof
+ * middles, wall segments, a door — because the source sheets only contain those
+ * pieces, never a whole house. Drawing a single cutout is what made the first
+ * attempt look like a narrow tower.
+ */
+export interface SpritePart {
+  readonly sprite: TileSprite
+  readonly bounds: PixelBounds
+}
+
 /** A rectangle in CSS pixels within the canvas. */
 export interface PixelBounds {
   readonly x: number
@@ -75,10 +91,14 @@ export interface PixelBounds {
  */
 export interface WorldObject {
   readonly kind: WorldObjectKind
-  readonly sprite: TileSprite
+  /** The pieces to draw, in back-to-front order. */
+  readonly parts: readonly SpritePart[]
+  /** The object's overall footprint: what a click will be tested against. */
   readonly bounds: PixelBounds
-  /** Text drawn beneath the object, or `null` when it needs no label. */
+  /** Text drawn near the object, or `null` when it needs no label. */
   readonly label: string | null
+  /** Which side of the object the label sits on. */
+  readonly labelAnchor: LabelAnchor
   /** Repository-relative folder path, or `null` for scenery and the player. */
   readonly folderPath: string | null
 }
