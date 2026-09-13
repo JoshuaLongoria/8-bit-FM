@@ -5,8 +5,6 @@ import { announce } from '../state'
 import { loadWorldAssets, type LoadedAssets } from './assetLoader'
 import { buildWorldLayout } from './mapLayout'
 import { drawMap } from './drawMap'
-import { folderAtClientPoint } from './hitTest'
-
 
 /**Impelementation for PC folder picker */
 import { open } from '@tauri-apps/plugin-dialog';
@@ -312,7 +310,7 @@ export default function WorldCanvas({
   )
 
   const handlePointerMove = useCallback(
-    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    async (event: ReactPointerEvent<HTMLCanvasElement>) => {
       const path = folderPathOf(hitAtEvent(event))
       // Only update on a real change, so an idle sweep across one roof does not
       // trigger a repaint per pixel.
@@ -326,34 +324,12 @@ export default function WorldCanvas({
   }, [])
 
   const handlePointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    async (event: ReactPointerEvent<HTMLCanvasElement>) => {
       // Ignore anything but the primary button; a right-click should not select.
       if (event.button !== 0) return
 
       const hit = hitAtEvent(event)
 
-      if(clickedPath === '__PC_HOUSE__'){
-        try{
-          const selectedDirectory = await open({
-            directory: true,
-            multiple: false
-          })
-
-          if(selectedDirectory && typeof selectedDirectory === 'string'){
-            console.log('DEBUG: Selected Directory ->', selectedDirectory)
-
-            // Scan that directory using the registered Rust command 'walk_repo'
-            const newPayload = await invoke<RepoPayload>('walk_repo', { path: selectedDirectory })
-            console.log('DEBUG: walk_repo Payload ->', newPayload)
-
-            const payloadAny = newPayload as any;
-            const normalizedNode = normalizeNode(payloadAny.node);
-            
-            load(newPayload.repo, normalizedNode);
-          }
-        }catch(err){
-          console.error('Failed to pick directory:', err)
-        }
       if (hit === null) {
         // Grass, a tree, a path, the player: not a target. Clear the selection.
         onSelectPath(null)
@@ -361,13 +337,31 @@ export default function WorldCanvas({
       }
 
       if (hit.kind === 'repository') {
+        try {
+          const selectedDirectory = await open({
+            directory: true,
+            multiple: false,
+          })
+
+          if (selectedDirectory && typeof selectedDirectory === 'string') {
+            console.log('DEBUG: Selected Directory ->', selectedDirectory)
+
+            // Scan that directory using the registered Rust command 'walk_repo'
+            const newPayload = await invoke<RepoPayload>('walk_repo', { path: selectedDirectory })
+            console.log('DEBUG: walk_repo Payload ->', newPayload)
+
+            const payloadAny = newPayload as any
+            const normalizedNode = normalizeNode(payloadAny.node)
+
+            load(newPayload.repo, normalizedNode)
+          }
+        } catch (err) {
+          console.error('Failed to pick directory:', err)
+        }
+
         onChooseRepository()
         return
       }
-
-      
-      // Clicking empty ground reports `null`, which clears the selection.
-      onSelectPath(clickedPath)
 
       // Selection is immediate; opening the folder waits for the player to arrive.
       onSelectPath(hit.path)
