@@ -1,0 +1,65 @@
+{
+  "repositoryName": "8-bit-FM",
+  "currentPath": ".",
+  "folders": [
+    {
+      "name": "src",
+      "path": "src",
+      "fileCount": 48
+    },
+    {
+      "name": "src-tauri",
+      "path": "src-tauri",
+      "fileCount": 31
+    },
+    {
+      "name": "public",
+      "path": "public",
+      "fileCount": 17
+    },
+    {
+      "name": ".github",
+      "path": ".github",
+      "fileCount": 6
+    },
+    {
+      "name": "docs",
+      "path": "docs",
+      "fileCount": 3
+    }
+  ],
+  "indicators": {
+    "hasReadme": true,
+    "hasGitignore": true,
+    "hasWorkflows": true,
+    "configFileCount": 3
+  },
+  "git": {
+    "branch": "main",
+    "dirty": true,
+    "contributors": [
+      {
+        "name": "Pixel Pete",
+        "commitCount": 128,
+        "activeRecently": true,
+        "isCurrentUser": false
+      },
+      {
+        "name": "Frostbyte Fran",
+        "commitCount": 74,
+        "activeRecently": false,
+        "isCurrentUser": true
+      },
+      {
+        "name": "Snowdrift Sue",
+        "commitCount": 12,
+        "activeRecently": false,
+        "isCurrentUser": false
+      }
+    ]
+  },
+  "scan": {
+    "truncated": false,
+    "warning": null
+  }
+}
