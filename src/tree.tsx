@@ -1,5 +1,6 @@
-import { useSyncExternalStore, useMemo, useEffect } from 'react'
-import { subscribe, getSnapshot, select, toggle } from './state'
+import { useSyncExternalStore, useMemo, useEffect, useRef } from 'react'
+import { subscribe, getSnapshot, select, toggle, announce } from './state'
+import type { DirNode } from './types'
 import { visibleNodes } from './visibleNodes'
 import './a11y.css'
 
@@ -9,6 +10,11 @@ const STATUS_LABEL: Record<string, string | null> = {
   added: 'added',
   deleted: 'deleted',
   untracked: 'untracked',
+}
+
+function expandDir(node: DirNode) {
+  toggle(node.path)
+  announce(`${node.children.length} immediate entries`)
 }
 
 export function Tree() {
@@ -27,13 +33,20 @@ export function Tree() {
 
   // state changes tabIndex; this moves real DOM focus, which is what
   // screen readers follow
+  const isFirstRender = useRef(true)
+
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return                        // don't steal focus on page load
+    }
     if (!focusedPath) return
     const el = document.querySelector<HTMLElement>(
       `[role="treeitem"][data-path="${CSS.escape(focusedPath)}"]`,
     )
     el?.focus()
   }, [focusedPath])
+
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     const i = rows.findIndex(r => r.node.path === focusedPath)
@@ -52,20 +65,23 @@ export function Tree() {
 
       case 'ArrowRight': {
         if (!isDir) break
+        if (node.children.length === 0) {
+          announce(`${node.name} is empty`)
+          break                     // nothing to expand; don't pollute `expanded`
+        }
         if (!state.expanded.has(node.path)) {
-          toggle(node.path)                     // collapsed -> expand
+          expandDir(node)
         } else {
-          const n = rows[i + 1]                 // expanded -> first child
-          if (n) select(n.node.path)
+          const n = rows[i + 1]
+          if (n) select(n.node.path)          // focus moves; no announce
         }
         break
       }
-
       case 'ArrowLeft': {
         if (isDir && state.expanded.has(node.path)) {
-          toggle(node.path)                     // expanded -> collapse
+          toggle(node.path)         // no announce — aria-expanded speaks "collapsed"
         } else {
-          let p = i - 1                         // otherwise -> parent
+          let p = i - 1
           while (p >= 0 && (rows[p]?.level ?? 0) >= level) p--
           const parent = rows[p]
           if (parent) select(parent.node.path)
@@ -74,7 +90,19 @@ export function Tree() {
       }
 
       case 'Enter': {
-        if (isDir) toggle(node.path)
+        if (!isDir) {
+          announce(`${node.name}, no action`)   // Enter does nothing on files
+          break
+        }
+        if (node.children.length === 0) {
+          announce(`${node.name} is empty`)
+          break
+        }
+        if (state.expanded.has(node.path)) {
+          toggle(node.path)       // no announce — aria-expanded speaks "collapsed"
+        } else {
+          expandDir(node)
+        }
         break
       }
 

@@ -1,21 +1,27 @@
 /**
- * Phase 1 shell: application name, subtitle, and an empty box reserving the
- * space where the Canvas winter scene will live (Phase 4).
+ * Application shell. Mounts the accessible tree and the scene placeholder,
+ * and hosts the single aria-live region — everything routes through
+ * announce() in state.ts rather than writing to the DOM directly.
  *
- * Intentionally absent until their own phases: Canvas, sprites, animation,
- * mock data, shared state, and Developer 3's accessible file tree.
+ * The region has no React key on purpose: a keyed element gets remounted and
+ * arrives already populated, which screen readers usually don't announce. The
+ * nonce varies the text instead.
  */
 
 import repoJson from './mock-repo.json'
 import type { RepoPayload } from './types'
-import { load } from './state'
-import { Tree } from './tree'   
+import { Tree } from './tree'
+import { useSyncExternalStore } from 'react'
+import { subscribe, getSnapshot, load } from './state'
 
 const payload = repoJson as unknown as RepoPayload
 load(payload.repo, payload.root)
 
 
+
 export default function App() {
+  const { announcement } = useSyncExternalStore(subscribe, getSnapshot)
+
   return (
     <div className="app">
       <header className="app__header">
@@ -32,6 +38,9 @@ export default function App() {
           <p className="scene-placeholder__hint">The Canvas winter scene renders here.</p>
         </div>
       </main>
+        <div role="status" aria-live="polite" className="sr-only">
+      {announcement.nonce % 2 ? announcement.text + '\u00A0' : announcement.text}
+    </div>
     </div>
   )
 }
